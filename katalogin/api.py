@@ -1,4 +1,5 @@
 import dataclasses
+import hmac
 import os
 import re
 
@@ -36,6 +37,11 @@ class ModelGenerateCSV(BaseModel):
     platform: str
     tone: str = "kasual"
     csv: str
+
+
+class ModelAdminKredit(BaseModel):
+    user_id: str
+    jumlah: int = Field(ge=1, le=100000)
 
 
 def ambil_user(
@@ -176,5 +182,36 @@ def create_app(
         if item is None:
             raise HTTPException(status_code=404, detail="Riwayat tidak ditemukan")
         return item
+
+    @app.post("/admin/kredit")
+    def admin_kredit(
+        permintaan: ModelAdminKredit,
+        x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
+    ) -> dict[str, str | int]:
+        token_server = app.state.admin_token
+        if (
+            token_server is None
+            or not x_admin_token
+            or not hmac.compare_digest(
+                token_server.encode("utf-8"), x_admin_token.encode("utf-8")
+            )
+        ):
+            raise HTTPException(status_code=403, detail="Token admin tidak valid")
+
+        if POLA_USER_ID.fullmatch(permintaan.user_id) is None:
+            raise HTTPException(status_code=400, detail="user_id tidak valid")
+
+        koneksi = db.buka(app.state.db_path)
+        try:
+            with db.transaksi(koneksi):
+                waktu = db.sekarang()
+                credits.pastikan_pengguna(koneksi, permintaan.user_id, waktu)
+                saldo = credits.tambah(
+                    koneksi, permintaan.user_id, permintaan.jumlah, "topup", waktu
+                )
+        finally:
+            koneksi.close()
+
+        return {"user_id": permintaan.user_id, "kredit": saldo}
 
     return app
