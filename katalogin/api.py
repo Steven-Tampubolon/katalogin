@@ -2,11 +2,12 @@ import dataclasses
 import os
 import re
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from katalogin import credits, db, service
+from katalogin import credits, db, history, service
 from katalogin.credits import KreditTidakCukup
+from katalogin.csvio import baca_csv, ekspor_csv
 from katalogin.extract import ekstrak_teks
 from katalogin.models import Product
 
@@ -29,6 +30,12 @@ class ModelGenerate(BaseModel):
     tone: str = "kasual"
     produk: ModelProduk | None = None
     teks: str | None = None
+
+
+class ModelGenerateCSV(BaseModel):
+    platform: str
+    tone: str = "kasual"
+    csv: str
 
 
 def ambil_user(
@@ -113,5 +120,61 @@ def create_app(
             "hasil": dataclasses.asdict(proses.hasil[0]),
             "sisa_kredit": proses.sisa_kredit,
         }
+
+    @app.post("/generate/csv")
+    def generate_csv(
+        permintaan: ModelGenerateCSV,
+        user_id: str = Depends(ambil_user),
+    ) -> dict[str, object]:
+        try:
+            daftar_produk = baca_csv(permintaan.csv)
+            proses = service.proses(
+                db_path=app.state.db_path,
+                user_id=user_id,
+                daftar_produk=daftar_produk,
+                platform=permintaan.platform,
+                tone=permintaan.tone,
+            )
+        except KreditTidakCukup as galat:
+            raise HTTPException(status_code=402, detail=str(galat)) from galat
+        except ValueError as galat:
+            raise HTTPException(status_code=400, detail=str(galat)) from galat
+
+        return {
+            "ids": proses.ids,
+            "hasil": [dataclasses.asdict(item) for item in proses.hasil],
+            "csv": ekspor_csv(proses.hasil),
+            "sisa_kredit": proses.sisa_kredit,
+        }
+
+    @app.get("/riwayat")
+    def daftar_riwayat(
+        user_id: str = Depends(ambil_user),
+        limit: int = Query(default=20, ge=1, le=100),
+        offset: int = Query(default=0, ge=0),
+    ) -> dict[str, object]:
+        koneksi = db.buka(app.state.db_path)
+        try:
+            total = history.hitung(koneksi, user_id)
+            item = history.daftar(koneksi, user_id, limit, offset)
+        finally:
+            koneksi.close()
+
+        return {"total": total, "item": item}
+
+    @app.get("/riwayat/{riwayat_id}")
+    def detail_riwayat(
+        riwayat_id: int,
+        user_id: str = Depends(ambil_user),
+    ) -> dict[str, object]:
+        koneksi = db.buka(app.state.db_path)
+        try:
+            item = history.ambil(koneksi, user_id, riwayat_id)
+        finally:
+            koneksi.close()
+
+        if item is None:
+            raise HTTPException(status_code=404, detail="Riwayat tidak ditemukan")
+        return item
 
     return app
