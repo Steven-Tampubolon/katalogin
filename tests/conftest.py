@@ -1,7 +1,10 @@
+from collections.abc import Callable
+
 import pytest
 from fastapi.testclient import TestClient
 
 from katalogin.api import create_app
+from katalogin.llm import LLMClient
 from katalogin.models import Product
 
 
@@ -36,6 +39,20 @@ def klien(tmp_path) -> TestClient:
     return TestClient(
         create_app(db_path=str(tmp_path / "t.db"), admin_token="token-uji")
     )
+
+
+@pytest.fixture
+def buat_klien_ai(tmp_path) -> Callable[[LLMClient], TestClient]:
+    def buat(llm: LLMClient) -> TestClient:
+        return TestClient(
+            create_app(
+                db_path=str(tmp_path / "t.db"),
+                admin_token="token-uji",
+                llm_client=llm,
+            )
+        )
+
+    return buat
 
 
 @pytest.fixture

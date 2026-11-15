@@ -14,6 +14,8 @@ from katalogin import credits, db, history, service
 from katalogin.credits import KreditTidakCukup
 from katalogin.csvio import baca_csv, ekspor_csv
 from katalogin.extract import ekstrak_teks
+from katalogin.llm import LLMClient
+from katalogin.llm_config import buat_klien_dari_env
 from katalogin.models import Product
 
 
@@ -118,11 +120,16 @@ class BatasBodyMiddleware:
 
 
 def create_app(
-    db_path: str | None = None, admin_token: str | None = None
+    db_path: str | None = None,
+    admin_token: str | None = None,
+    llm_client: LLMClient | None = None,
 ) -> FastAPI:
     app = FastAPI()
     app.state.db_path = db_path or os.environ.get("KATALOGIN_DB", "katalogin.db")
     app.state.admin_token = admin_token or os.environ.get("KATALOGIN_ADMIN_TOKEN")
+    app.state.llm_client = (
+        llm_client if llm_client is not None else buat_klien_dari_env()
+    )
     db.init_db(app.state.db_path)
     app.add_middleware(BatasBodyMiddleware, batas=BATAS_CONTENT_LENGTH)
 
