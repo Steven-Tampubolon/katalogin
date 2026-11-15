@@ -14,7 +14,13 @@ from katalogin import credits, db, history, service
 from katalogin.credits import KreditTidakCukup
 from katalogin.csvio import baca_csv, ekspor_csv
 from katalogin.extract import ekstrak_teks
-from katalogin.llm import LLMClient, coba_ekstrak_dengan_llm
+from katalogin.gambar import decode_base64, deteksi_mime
+from katalogin.llm import (
+    LLMClient,
+    LLMError,
+    coba_ekstrak_dengan_llm,
+    ekstrak_dari_gambar,
+)
 from katalogin.llm_config import buat_klien_dari_env
 from katalogin.models import Product
 
@@ -43,6 +49,12 @@ class ModelGenerate(BaseModel):
     gunakan_ai: bool = False
 
 
+class ModelGenerateFoto(BaseModel):
+    platform: str = Field(max_length=30)
+    tone: str = Field(default="kasual", max_length=30)
+    gambar_base64: str = Field(max_length=6800000)
+
+
 class ModelGenerateCSV(BaseModel):
     platform: str = Field(max_length=30)
     tone: str = Field(default="kasual", max_length=30)
@@ -67,9 +79,15 @@ def ambil_user(
 
 
 class BatasBodyMiddleware:
-    def __init__(self, app: ASGIApp, batas: int) -> None:
+    def __init__(
+        self,
+        app: ASGIApp,
+        batas: int,
+        batas_per_jalur: dict[str, int] | None = None,
+    ) -> None:
         self.app = app
         self.batas = batas
+        self.batas_per_jalur = batas_per_jalur or {}
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -81,7 +99,8 @@ class BatasBodyMiddleware:
             panjang_body = int(content_length) if content_length is not None else 0
         except ValueError:
             panjang_body = 0
-        if panjang_body > self.batas:
+        batas = self.batas_per_jalur.get(scope["path"], self.batas)
+        if panjang_body > batas:
             await self._tolak(scope, receive, send)
             return
 
@@ -94,7 +113,7 @@ class BatasBodyMiddleware:
                 continue
 
             chunk = message.get("body", b"")
-            if len(body) + len(chunk) > self.batas:
+            if len(body) + len(chunk) > batas:
                 await self._tolak(scope, receive, send)
                 return
             body.extend(chunk)
@@ -132,7 +151,11 @@ def create_app(
         llm_client if llm_client is not None else buat_klien_dari_env()
     )
     db.init_db(app.state.db_path)
-    app.add_middleware(BatasBodyMiddleware, batas=BATAS_CONTENT_LENGTH)
+    app.add_middleware(
+        BatasBodyMiddleware,
+        batas=BATAS_CONTENT_LENGTH,
+        batas_per_jalur={"/generate/foto": 7_000_000},
+    )
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -239,6 +262,71 @@ def create_app(
         if ekstraksi is not None:
             respons["ekstraksi"] = ekstraksi
         return respons
+
+    @app.post("/generate/foto")
+    def generate_foto(
+        permintaan: ModelGenerateFoto,
+        user_id: str = Depends(ambil_user),
+    ) -> dict[str, object]:
+        llm_client = app.state.llm_client
+        if llm_client is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Layanan AI belum dikonfigurasi",
+            )
+
+        try:
+            gambar = decode_base64(permintaan.gambar_base64)
+            mime = deteksi_mime(gambar)
+        except ValueError as galat:
+            raise HTTPException(status_code=400, detail=str(galat)) from galat
+
+        koneksi = db.buka(app.state.db_path)
+        try:
+            saldo = credits.saldo_efektif(koneksi, user_id)
+        finally:
+            koneksi.close()
+        if saldo < 1:
+            raise HTTPException(
+                status_code=402,
+                detail=f"Kredit tidak cukup: butuh 1, tersisa {saldo}",
+            )
+
+        try:
+            produk = ekstrak_dari_gambar(gambar, mime, llm_client)
+        except LLMError as galat:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Layanan AI gagal: {galat}",
+            ) from galat
+        except ValueError as galat:
+            raise HTTPException(status_code=422, detail=str(galat)) from galat
+        except NotImplementedError as galat:
+            raise HTTPException(
+                status_code=503,
+                detail="Layanan AI belum mendukung gambar",
+            ) from galat
+
+        try:
+            proses = service.proses(
+                db_path=app.state.db_path,
+                user_id=user_id,
+                daftar_produk=[produk],
+                platform=permintaan.platform,
+                tone=permintaan.tone,
+            )
+        except KreditTidakCukup as galat:
+            raise HTTPException(status_code=402, detail=str(galat)) from galat
+        except ValueError as galat:
+            raise HTTPException(status_code=400, detail=str(galat)) from galat
+
+        return {
+            "id": proses.ids[0],
+            "hasil": dataclasses.asdict(proses.hasil[0]),
+            "sisa_kredit": proses.sisa_kredit,
+            "ekstraksi": "foto",
+            "produk_terbaca": dataclasses.asdict(produk),
+        }
 
     @app.post("/generate/csv")
     def generate_csv(
