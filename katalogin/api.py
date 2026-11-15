@@ -101,7 +101,10 @@ def create_app(
                 fitur=permintaan.produk.fitur,
             )
         elif permintaan.teks is not None:
-            produk = ekstrak_teks(permintaan.teks)
+            try:
+                produk = ekstrak_teks(permintaan.teks)
+            except ValueError as galat:
+                raise HTTPException(status_code=400, detail=str(galat)) from galat
         else:
             raise HTTPException(
                 status_code=400,
