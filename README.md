@@ -28,7 +28,7 @@ Header `X-User-Id` pada endpoint pengguna hanyalah placeholder, bukan mekanisme 
 - `platform` dan `tone` pada `POST /generate` serta `POST /generate/csv`: masing-masing maksimum 30 karakter.
 - `csv` pada `POST /generate/csv`: maksimum 100000 karakter.
 - `user_id` pada `POST /admin/kredit`: maksimum 64 karakter.
-- Permintaan dengan header `Content-Length` lebih besar dari 1000000 byte ditolak langsung dengan status 413 dan JSON `{"detail": "Permintaan terlalu besar"}`. Jika header tersebut tidak ada atau bukan angka, permintaan diproses seperti biasa.
+- Body permintaan dibatasi maksimal 1000000 byte. Permintaan yang melebihi batas ditolak dengan status 413 dan JSON `{"detail": "Permintaan terlalu besar"}`. Batas berlaku berdasarkan `Content-Length` maupun jumlah byte pada stream body, sehingga permintaan chunked atau tanpa `Content-Length` juga dibatasi.
 
 ## Endpoint
 

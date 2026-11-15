@@ -4,9 +4,11 @@ import os
 import re
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from starlette.datastructures import Headers
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from katalogin import credits, db, history, service
 from katalogin.credits import KreditTidakCukup
@@ -61,6 +63,60 @@ def ambil_user(
     return x_user_id
 
 
+class BatasBodyMiddleware:
+    def __init__(self, app: ASGIApp, batas: int) -> None:
+        self.app = app
+        self.batas = batas
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        content_length = Headers(scope=scope).get("content-length")
+        try:
+            panjang_body = int(content_length) if content_length is not None else 0
+        except ValueError:
+            panjang_body = 0
+        if panjang_body > self.batas:
+            await self._tolak(scope, receive, send)
+            return
+
+        body = bytearray()
+        while True:
+            message = await receive()
+            if message["type"] == "http.disconnect":
+                return
+            if message["type"] != "http.request":
+                continue
+
+            chunk = message.get("body", b"")
+            if len(body) + len(chunk) > self.batas:
+                await self._tolak(scope, receive, send)
+                return
+            body.extend(chunk)
+            if not message.get("more_body", False):
+                break
+
+        body_sent = False
+
+        async def receive_body() -> Message:
+            nonlocal body_sent
+            if body_sent:
+                return {"type": "http.disconnect"}
+            body_sent = True
+            return {"type": "http.request", "body": bytes(body), "more_body": False}
+
+        await self.app(scope, receive_body, send)
+
+    async def _tolak(self, scope: Scope, receive: Receive, send: Send) -> None:
+        respons = JSONResponse(
+            status_code=413,
+            content={"detail": "Permintaan terlalu besar"},
+        )
+        await respons(scope, receive, send)
+
+
 def create_app(
     db_path: str | None = None, admin_token: str | None = None
 ) -> FastAPI:
@@ -68,20 +124,7 @@ def create_app(
     app.state.db_path = db_path or os.environ.get("KATALOGIN_DB", "katalogin.db")
     app.state.admin_token = admin_token or os.environ.get("KATALOGIN_ADMIN_TOKEN")
     db.init_db(app.state.db_path)
-
-    @app.middleware("http")
-    async def batas_content_length(request: Request, call_next):
-        content_length = request.headers.get("content-length")
-        try:
-            panjang_body = int(content_length) if content_length is not None else 0
-        except ValueError:
-            panjang_body = 0
-        if panjang_body > BATAS_CONTENT_LENGTH:
-            return JSONResponse(
-                status_code=413,
-                content={"detail": "Permintaan terlalu besar"},
-            )
-        return await call_next(request)
+    app.add_middleware(BatasBodyMiddleware, batas=BATAS_CONTENT_LENGTH)
 
     @app.get("/health")
     def health() -> dict[str, str]:
