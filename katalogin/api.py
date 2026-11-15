@@ -2,8 +2,10 @@ import dataclasses
 import hmac
 import os
 import re
+from typing import Annotated
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from katalogin import credits, db, history, service
@@ -14,33 +16,36 @@ from katalogin.models import Product
 
 
 POLA_USER_ID = re.compile(r"^[A-Za-z0-9_.@-]{1,64}$")
+BATAS_CONTENT_LENGTH = 1_000_000
 
 
 class ModelProduk(BaseModel):
-    nama: str
-    merek: str | None = None
-    bahan: str | None = None
-    ukuran: str | None = None
-    warna: str | None = None
-    fungsi: str | None = None
-    fitur: list[str] = Field(default_factory=list)
+    nama: str = Field(max_length=200)
+    merek: str | None = Field(default=None, max_length=200)
+    bahan: str | None = Field(default=None, max_length=200)
+    ukuran: str | None = Field(default=None, max_length=200)
+    warna: str | None = Field(default=None, max_length=200)
+    fungsi: str | None = Field(default=None, max_length=200)
+    fitur: list[Annotated[str, Field(max_length=100)]] = Field(
+        default_factory=list, max_length=20
+    )
 
 
 class ModelGenerate(BaseModel):
-    platform: str
-    tone: str = "kasual"
+    platform: str = Field(max_length=30)
+    tone: str = Field(default="kasual", max_length=30)
     produk: ModelProduk | None = None
-    teks: str | None = None
+    teks: str | None = Field(default=None, max_length=20000)
 
 
 class ModelGenerateCSV(BaseModel):
-    platform: str
-    tone: str = "kasual"
-    csv: str
+    platform: str = Field(max_length=30)
+    tone: str = Field(default="kasual", max_length=30)
+    csv: str = Field(max_length=100000)
 
 
 class ModelAdminKredit(BaseModel):
-    user_id: str
+    user_id: str = Field(max_length=64)
     jumlah: int = Field(ge=1, le=100000)
 
 
@@ -63,6 +68,20 @@ def create_app(
     app.state.db_path = db_path or os.environ.get("KATALOGIN_DB", "katalogin.db")
     app.state.admin_token = admin_token or os.environ.get("KATALOGIN_ADMIN_TOKEN")
     db.init_db(app.state.db_path)
+
+    @app.middleware("http")
+    async def batas_content_length(request: Request, call_next):
+        content_length = request.headers.get("content-length")
+        try:
+            panjang_body = int(content_length) if content_length is not None else 0
+        except ValueError:
+            panjang_body = 0
+        if panjang_body > BATAS_CONTENT_LENGTH:
+            return JSONResponse(
+                status_code=413,
+                content={"detail": "Permintaan terlalu besar"},
+            )
+        return await call_next(request)
 
     @app.get("/health")
     def health() -> dict[str, str]:
