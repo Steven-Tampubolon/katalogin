@@ -14,7 +14,7 @@ from katalogin import credits, db, history, service
 from katalogin.credits import KreditTidakCukup
 from katalogin.csvio import baca_csv, ekspor_csv
 from katalogin.extract import ekstrak_teks
-from katalogin.llm import LLMClient
+from katalogin.llm import LLMClient, coba_ekstrak_dengan_llm
 from katalogin.llm_config import buat_klien_dari_env
 from katalogin.models import Product
 
@@ -40,6 +40,7 @@ class ModelGenerate(BaseModel):
     tone: str = Field(default="kasual", max_length=30)
     produk: ModelProduk | None = None
     teks: str | None = Field(default=None, max_length=20000)
+    gunakan_ai: bool = False
 
 
 class ModelGenerateCSV(BaseModel):
@@ -154,6 +155,13 @@ def create_app(
         permintaan: ModelGenerate,
         user_id: str = Depends(ambil_user),
     ) -> dict[str, object]:
+        if permintaan.gunakan_ai and permintaan.produk is not None:
+            raise HTTPException(
+                status_code=400,
+                detail="gunakan_ai hanya berlaku untuk 'teks'",
+            )
+
+        ekstraksi: str | None = None
         if permintaan.produk is not None:
             if permintaan.teks is not None:
                 raise HTTPException(
@@ -170,10 +178,40 @@ def create_app(
                 fitur=permintaan.produk.fitur,
             )
         elif permintaan.teks is not None:
-            try:
-                produk = ekstrak_teks(permintaan.teks)
-            except ValueError as galat:
-                raise HTTPException(status_code=400, detail=str(galat)) from galat
+            if permintaan.gunakan_ai:
+                llm_client = app.state.llm_client
+                if llm_client is None:
+                    raise HTTPException(
+                        status_code=503,
+                        detail="Layanan AI belum dikonfigurasi",
+                    )
+
+                koneksi = db.buka(app.state.db_path)
+                try:
+                    saldo = credits.saldo_efektif(koneksi, user_id)
+                finally:
+                    koneksi.close()
+                if saldo < 1:
+                    raise HTTPException(
+                        status_code=402,
+                        detail=f"Kredit tidak cukup: butuh 1, tersisa {saldo}",
+                    )
+
+                produk_ai = coba_ekstrak_dengan_llm(permintaan.teks, llm_client)
+                if produk_ai is not None:
+                    produk = produk_ai
+                    ekstraksi = "ai"
+                else:
+                    try:
+                        produk = ekstrak_teks(permintaan.teks)
+                    except ValueError as galat:
+                        raise HTTPException(status_code=400, detail=str(galat)) from galat
+                    ekstraksi = "aturan"
+            else:
+                try:
+                    produk = ekstrak_teks(permintaan.teks)
+                except ValueError as galat:
+                    raise HTTPException(status_code=400, detail=str(galat)) from galat
         else:
             raise HTTPException(
                 status_code=400,
@@ -193,11 +231,14 @@ def create_app(
         except ValueError as galat:
             raise HTTPException(status_code=400, detail=str(galat)) from galat
 
-        return {
+        respons: dict[str, object] = {
             "id": proses.ids[0],
             "hasil": dataclasses.asdict(proses.hasil[0]),
             "sisa_kredit": proses.sisa_kredit,
         }
+        if ekstraksi is not None:
+            respons["ekstraksi"] = ekstraksi
+        return respons
 
     @app.post("/generate/csv")
     def generate_csv(
