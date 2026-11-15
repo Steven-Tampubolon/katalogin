@@ -20,6 +20,16 @@ uvicorn katalogin.main:app
 
 Header `X-User-Id` pada endpoint pengguna hanyalah placeholder, bukan mekanisme autentikasi atau keamanan.
 
+## Batas masukan
+
+- `nama`, `merek`, `bahan`, `ukuran`, `warna`, dan `fungsi` produk: masing-masing maksimum 200 karakter.
+- `fitur` produk: maksimum 20 item, masing-masing item maksimum 100 karakter.
+- `teks` pada `POST /generate`: maksimum 20000 karakter.
+- `platform` dan `tone` pada `POST /generate` serta `POST /generate/csv`: masing-masing maksimum 30 karakter.
+- `csv` pada `POST /generate/csv`: maksimum 100000 karakter.
+- `user_id` pada `POST /admin/kredit`: maksimum 64 karakter.
+- Body permintaan dibatasi maksimal 1000000 byte. Permintaan yang melebihi batas ditolak dengan status 413 dan JSON `{"detail": "Permintaan terlalu besar"}`. Batas berlaku berdasarkan `Content-Length` maupun jumlah byte pada stream body, sehingga permintaan chunked atau tanpa `Content-Length` juga dibatasi.
+
 ## Endpoint
 
 | Metode | Jalur | Keterangan |

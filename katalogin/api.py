@@ -2,9 +2,13 @@ import dataclasses
 import hmac
 import os
 import re
+from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from starlette.datastructures import Headers
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from katalogin import credits, db, history, service
 from katalogin.credits import KreditTidakCukup
@@ -14,33 +18,36 @@ from katalogin.models import Product
 
 
 POLA_USER_ID = re.compile(r"^[A-Za-z0-9_.@-]{1,64}$")
+BATAS_CONTENT_LENGTH = 1_000_000
 
 
 class ModelProduk(BaseModel):
-    nama: str
-    merek: str | None = None
-    bahan: str | None = None
-    ukuran: str | None = None
-    warna: str | None = None
-    fungsi: str | None = None
-    fitur: list[str] = Field(default_factory=list)
+    nama: str = Field(max_length=200)
+    merek: str | None = Field(default=None, max_length=200)
+    bahan: str | None = Field(default=None, max_length=200)
+    ukuran: str | None = Field(default=None, max_length=200)
+    warna: str | None = Field(default=None, max_length=200)
+    fungsi: str | None = Field(default=None, max_length=200)
+    fitur: list[Annotated[str, Field(max_length=100)]] = Field(
+        default_factory=list, max_length=20
+    )
 
 
 class ModelGenerate(BaseModel):
-    platform: str
-    tone: str = "kasual"
+    platform: str = Field(max_length=30)
+    tone: str = Field(default="kasual", max_length=30)
     produk: ModelProduk | None = None
-    teks: str | None = None
+    teks: str | None = Field(default=None, max_length=20000)
 
 
 class ModelGenerateCSV(BaseModel):
-    platform: str
-    tone: str = "kasual"
-    csv: str
+    platform: str = Field(max_length=30)
+    tone: str = Field(default="kasual", max_length=30)
+    csv: str = Field(max_length=100000)
 
 
 class ModelAdminKredit(BaseModel):
-    user_id: str
+    user_id: str = Field(max_length=64)
     jumlah: int = Field(ge=1, le=100000)
 
 
@@ -56,6 +63,60 @@ def ambil_user(
     return x_user_id
 
 
+class BatasBodyMiddleware:
+    def __init__(self, app: ASGIApp, batas: int) -> None:
+        self.app = app
+        self.batas = batas
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        content_length = Headers(scope=scope).get("content-length")
+        try:
+            panjang_body = int(content_length) if content_length is not None else 0
+        except ValueError:
+            panjang_body = 0
+        if panjang_body > self.batas:
+            await self._tolak(scope, receive, send)
+            return
+
+        body = bytearray()
+        while True:
+            message = await receive()
+            if message["type"] == "http.disconnect":
+                return
+            if message["type"] != "http.request":
+                continue
+
+            chunk = message.get("body", b"")
+            if len(body) + len(chunk) > self.batas:
+                await self._tolak(scope, receive, send)
+                return
+            body.extend(chunk)
+            if not message.get("more_body", False):
+                break
+
+        body_sent = False
+
+        async def receive_body() -> Message:
+            nonlocal body_sent
+            if body_sent:
+                return {"type": "http.disconnect"}
+            body_sent = True
+            return {"type": "http.request", "body": bytes(body), "more_body": False}
+
+        await self.app(scope, receive_body, send)
+
+    async def _tolak(self, scope: Scope, receive: Receive, send: Send) -> None:
+        respons = JSONResponse(
+            status_code=413,
+            content={"detail": "Permintaan terlalu besar"},
+        )
+        await respons(scope, receive, send)
+
+
 def create_app(
     db_path: str | None = None, admin_token: str | None = None
 ) -> FastAPI:
@@ -63,6 +124,7 @@ def create_app(
     app.state.db_path = db_path or os.environ.get("KATALOGIN_DB", "katalogin.db")
     app.state.admin_token = admin_token or os.environ.get("KATALOGIN_ADMIN_TOKEN")
     db.init_db(app.state.db_path)
+    app.add_middleware(BatasBodyMiddleware, batas=BATAS_CONTENT_LENGTH)
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -101,7 +163,10 @@ def create_app(
                 fitur=permintaan.produk.fitur,
             )
         elif permintaan.teks is not None:
-            produk = ekstrak_teks(permintaan.teks)
+            try:
+                produk = ekstrak_teks(permintaan.teks)
+            except ValueError as galat:
+                raise HTTPException(status_code=400, detail=str(galat)) from galat
         else:
             raise HTTPException(
                 status_code=400,
