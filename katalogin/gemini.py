@@ -1,3 +1,4 @@
+import base64
 import time
 from collections.abc import Callable
 
@@ -36,12 +37,28 @@ class GeminiClient(LLMClient):
         return f"GeminiClient(model={self.model})"
 
     def complete(self, prompt: str) -> str:
+        return self._kirim([{"text": prompt}])
+
+    def complete_dengan_gambar(self, prompt: str, gambar: bytes, mime: str) -> str:
+        return self._kirim(
+            [
+                {"text": prompt},
+                {
+                    "inline_data": {
+                        "mime_type": mime,
+                        "data": base64.b64encode(gambar).decode("ascii"),
+                    }
+                },
+            ]
+        )
+
+    def _kirim(self, bagian: list[dict]) -> str:
         url = _URL.format(model=self.model)
         headers = {
             "x-goog-api-key": self._api_key,
             "Content-Type": "application/json",
         }
-        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        payload = {"contents": [{"parts": bagian}]}
 
         with httpx.Client(
             transport=self._transport,
