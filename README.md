@@ -20,6 +20,53 @@ uvicorn katalogin.main:app
 
 Header `X-User-Id` pada endpoint pengguna hanyalah placeholder, bukan mekanisme autentikasi atau keamanan.
 
+## Konfigurasi AI
+
+| Variabel | Keterangan | Bawaan |
+|---|---|---|
+| `GEMINI_API_KEY` | Kunci API Gemini untuk ekstraksi teks dan foto | Tidak ada; layanan AI dinonaktifkan bila kosong |
+| `KATALOGIN_LLM_MODEL` | Nama model Gemini yang digunakan | `gemini-3.6-flash` |
+
+Simpan `GEMINI_API_KEY` sebagai variabel lingkungan di tempat API dijalankan. Jangan menyimpan kunci API di repository atau mencetaknya di log.
+
+Opsi `gunakan_ai` pada `POST /generate` meminta Gemini mengekstraksi atribut produk dari `teks` supplier. Opsi ini hanya berlaku bila `teks` diisi dan tidak dapat dikombinasikan dengan `produk`. Contoh:
+
+```json
+{
+  "platform": "shopee",
+  "teks": "Kaos polos pria Oneck, katun combed 30s, warna hitam",
+  "gunakan_ai": true
+}
+```
+
+Satu produk hasil ekstraksi AI memakai 1 kredit, sama seperti pemrosesan produk biasa. Jika hasil AI tidak dapat dibaca, API memakai ekstraksi berbasis aturan.
+
+`POST /generate/foto` menerima gambar produk dalam body JSON:
+
+```json
+{
+  "platform": "shopee",
+  "tone": "kasual",
+  "gambar_base64": "<data base64>"
+}
+```
+
+Gambar harus berformat JPEG, PNG, atau WebP dan ukurannya maksimal 5 MB. Setiap foto yang berhasil diproses memakai 1 kredit.
+
+Galat API AI yang perlu diperhatikan:
+
+- `502`: permintaan ke penyedia AI gagal saat memproses foto.
+- `503`: layanan AI belum dikonfigurasi atau klien tidak mendukung pembacaan gambar.
+
+Untuk menguji koneksi secara manual, jalankan:
+
+```bash
+python -m katalogin.uji_llm
+python -m katalogin.uji_llm --foto <berkas>
+```
+
+Perintah pertama menguji balasan teks, sedangkan perintah kedua menguji pembacaan foto.
+
 ## Batas masukan
 
 - `nama`, `merek`, `bahan`, `ukuran`, `warna`, dan `fungsi` produk: masing-masing maksimum 200 karakter.
@@ -37,6 +84,7 @@ Header `X-User-Id` pada endpoint pengguna hanyalah placeholder, bukan mekanisme 
 | `GET` | `/health` | Memeriksa kesehatan aplikasi |
 | `GET` | `/kredit` | Mengambil saldo kredit pengguna |
 | `POST` | `/generate` | Menghasilkan konten dari satu produk |
+| `POST` | `/generate/foto` | Mengekstraksi produk dari foto dan menghasilkan konten |
 | `POST` | `/generate/csv` | Menghasilkan konten dari beberapa produk dalam CSV |
 | `GET` | `/riwayat` | Mengambil daftar riwayat hasil pengguna |
 | `GET` | `/riwayat/{id}` | Mengambil satu riwayat hasil milik pengguna |

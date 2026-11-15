@@ -13,20 +13,41 @@ PROMPT_EKSTRAKSI = (
     "Teks supplier:\n{TEKS}"
 )
 
+PROMPT_FOTO = (
+    "Baca foto produk dan ekstrak informasi yang terlihat. Balas hanya satu "
+    "objek JSON dengan kunci nama, merek, bahan, ukuran, warna, fungsi, dan fitur. "
+    "Isi fitur dengan array string dan nilai yang tidak terlihat jelas di foto "
+    "dengan null. Jangan mengarang informasi dan jangan menambahkan penjelasan."
+)
+
+
+class LLMError(Exception):
+    pass
+
 
 class LLMClient(abc.ABC):
     @abc.abstractmethod
     def complete(self, prompt: str) -> str:
         ...
 
+    def complete_dengan_gambar(self, prompt: str, gambar: bytes, mime: str) -> str:
+        raise NotImplementedError("Klien ini tidak mendukung gambar")
+
 
 class FakeLLM(LLMClient):
     def __init__(self, respons: str | Exception) -> None:
         self.respons = respons
         self.prompts: list[str] = []
+        self.gambar: list[tuple[str, bytes, str]] = []
 
     def complete(self, prompt: str) -> str:
         self.prompts.append(prompt)
+        if isinstance(self.respons, Exception):
+            raise self.respons
+        return self.respons
+
+    def complete_dengan_gambar(self, prompt: str, gambar: bytes, mime: str) -> str:
+        self.gambar.append((prompt, gambar, mime))
         if isinstance(self.respons, Exception):
             raise self.respons
         return self.respons
@@ -38,13 +59,7 @@ def _nilai_teks(nilai: object) -> str | None:
     return rapikan_teks(nilai)
 
 
-def ekstrak_dengan_llm(teks: str, client: LLMClient) -> Product:
-    prompt = PROMPT_EKSTRAKSI.replace("{TEKS}", teks)
-    try:
-        respons = client.complete(prompt)
-    except Exception:
-        return ekstrak_teks(teks)
-
+def _produk_dari_respons(respons: str) -> Product | None:
     try:
         awal = respons.find("{")
         akhir = respons.rfind("}")
@@ -57,7 +72,7 @@ def ekstrak_dengan_llm(teks: str, client: LLMClient) -> Product:
         if not isinstance(nama, str) or not nama.strip():
             raise ValueError
     except (AttributeError, TypeError, ValueError):
-        return ekstrak_teks(teks)
+        return None
 
     merek = data.get("merek")
     fitur = data.get("fitur")
@@ -75,3 +90,24 @@ def ekstrak_dengan_llm(teks: str, client: LLMClient) -> Product:
             else []
         ),
     )
+
+
+def coba_ekstrak_dengan_llm(teks: str, client: LLMClient) -> Product | None:
+    prompt = PROMPT_EKSTRAKSI.replace("{TEKS}", teks)
+    try:
+        respons = client.complete(prompt)
+    except Exception:
+        return None
+    return _produk_dari_respons(respons)
+
+
+def ekstrak_dengan_llm(teks: str, client: LLMClient) -> Product:
+    return coba_ekstrak_dengan_llm(teks, client) or ekstrak_teks(teks)
+
+
+def ekstrak_dari_gambar(gambar: bytes, mime: str, client: LLMClient) -> Product:
+    respons = client.complete_dengan_gambar(PROMPT_FOTO, gambar, mime)
+    produk = _produk_dari_respons(respons)
+    if produk is None:
+        raise ValueError("Gagal membaca produk dari gambar")
+    return produk

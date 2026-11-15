@@ -33,6 +33,13 @@ def saldo(conn: sqlite3.Connection, user_id: str) -> int:
     return 0 if baris is None else int(baris[0])
 
 
+def saldo_efektif(conn: sqlite3.Connection, user_id: str) -> int:
+    baris = conn.execute(
+        "SELECT kredit FROM pengguna WHERE user_id = ?", (user_id,)
+    ).fetchone()
+    return KREDIT_GRATIS if baris is None else int(baris[0])
+
+
 def kurangi(
     conn: sqlite3.Connection,
     user_id: str,
