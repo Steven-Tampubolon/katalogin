@@ -14,6 +14,7 @@ from katalogin.web.tampilan import (
     PLATFORM_OPSI,
     TONE_OPSI,
     baris_hasil_csv,
+    baris_riwayat,
     pesan_galat,
 )
 
@@ -155,6 +156,44 @@ with tab_csv:
         for hasil in respons["hasil"]:
             with st.expander(hasil["nama_produk"]):
                 tampilkan_hasil(hasil)
+
+with tab_riwayat:
+    try:
+        respons_riwayat = api.riwayat(limit=20, offset=0)
+    except ApiError as galat:
+        st.error(pesan_galat(galat))
+    else:
+        total = respons_riwayat["total"]
+        item = respons_riwayat["item"]
+        if total == 0:
+            st.session_state["_riwayat_total"] = 0
+            st.session_state.pop("pilih_riwayat", None)
+            st.info("Belum ada riwayat.")
+        else:
+            daftar_id = [entri["id"] for entri in item]
+            total_sebelumnya = st.session_state.get("_riwayat_total")
+            pilihan_sebelumnya = st.session_state.get("pilih_riwayat")
+            if (
+                total_sebelumnya != total
+                or pilihan_sebelumnya not in daftar_id
+            ):
+                st.session_state["pilih_riwayat"] = daftar_id[0]
+            st.session_state["_riwayat_total"] = total
+
+            st.caption(f"{len(item)} terbaru dari {total} riwayat")
+            st.dataframe(baris_riwayat(item))
+            riwayat_id = st.selectbox(
+                "Lihat detail",
+                daftar_id,
+                key="pilih_riwayat",
+            )
+
+            try:
+                detail = api.riwayat_item(riwayat_id)
+            except ApiError as galat:
+                st.error(pesan_galat(galat))
+            else:
+                tampilkan_hasil(detail["hasil"])
 
 try:
     kredit = api.kredit()
