@@ -1,7 +1,11 @@
 from collections.abc import Callable
+from itertools import count
+from pathlib import Path
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
+from streamlit.testing.v1 import AppTest
 
 from katalogin.api import create_app
 from katalogin.llm import LLMClient
@@ -77,6 +81,39 @@ def gambar_jpeg() -> bytes:
 @pytest.fixture
 def gambar_webp() -> bytes:
     return b"RIFF\x00\x00\x00\x00WEBP" + b"\x00" * 8
+
+
+@pytest.fixture
+def buat_app_web(tmp_path) -> Callable[..., AppTest]:
+    application_path = (
+        Path(__file__).resolve().parents[1] / "katalogin" / "web" / "app.py"
+    )
+    nomor_database = count()
+
+    def buat(
+        llm: LLMClient | None = None,
+        user_id: str = "andi",
+        http: httpx.Client | None = None,
+    ) -> AppTest:
+        if http is None:
+            db_path = tmp_path / f"web-{next(nomor_database)}.db"
+            http = TestClient(
+                create_app(
+                    db_path=str(db_path),
+                    admin_token="token-uji",
+                    llm_client=llm,
+                )
+            )
+
+        at = AppTest.from_file(str(application_path), default_timeout=30)
+        at.session_state["http_klien"] = http
+        at.run()
+        if user_id:
+            at.sidebar.text_input(key="user_id").set_value(user_id)
+            at.run()
+        return at
+
+    return buat
 
 
 @pytest.fixture(autouse=True)
