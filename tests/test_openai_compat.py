@@ -1,9 +1,10 @@
+import base64
 import json
 
 import httpx
 import pytest
 
-from katalogin.llm import LLMClient, LLMError
+from katalogin.llm import LLMClient, LLMError, ekstrak_dari_gambar
 from katalogin.openai_compat import OpenAICompatClient
 
 
@@ -305,3 +306,142 @@ def test_complete_mengubah_transport_error_menjadi_llm_error() -> None:
     assert len(jumlah) == 3
     assert tidur == [1, 2]
     assert KUNCI not in str(galat.value)
+
+
+def test_complete_dengan_gambar_mengirim_gambar_sebagai_data_url(gambar_png: bytes) -> None:
+    permintaan: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        permintaan.append(request)
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "hasil"}}]},
+        )
+
+    client = OpenAICompatClient(
+        KUNCI,
+        "model-uji",
+        "https://contoh.test/v1",
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert client.complete_dengan_gambar("apa ini", gambar_png, "image/png") == "hasil"
+    assert len(permintaan) == 1
+    request = permintaan[0]
+    assert request.method == "POST"
+    assert str(request.url) == "https://contoh.test/v1/chat/completions"
+    assert request.headers["Authorization"] == f"Bearer {KUNCI}"
+    assert request.headers["Content-Type"] == "application/json"
+    assert json.loads(request.content) == {
+        "model": "model-uji",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "apa ini"},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": (
+                                "data:image/png;base64,"
+                                + base64.b64encode(gambar_png).decode("ascii")
+                            )
+                        },
+                    },
+                ],
+            }
+        ],
+    }
+
+
+def test_complete_dengan_gambar_mengulang_503_lalu_berhasil(gambar_png: bytes) -> None:
+    jumlah: list[int] = []
+    tidur: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        jumlah.append(1)
+        if len(jumlah) == 1:
+            return httpx.Response(503, json={"error": "sibuk"})
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "hasil"}}]},
+        )
+
+    client = OpenAICompatClient(
+        KUNCI,
+        "model-uji",
+        transport=httpx.MockTransport(handler),
+        tidur=tidur.append,
+    )
+
+    assert client.complete_dengan_gambar("apa ini", gambar_png, "image/png") == "hasil"
+    assert len(jumlah) == 2
+    assert tidur == [1]
+
+
+def test_complete_dengan_gambar_mengulang_429_sampai_kuota_habis(
+    gambar_png: bytes,
+) -> None:
+    jumlah: list[int] = []
+    tidur: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        jumlah.append(1)
+        return httpx.Response(429, json={"error": "kuota"})
+
+    client = OpenAICompatClient(
+        KUNCI,
+        "model-uji",
+        transport=httpx.MockTransport(handler),
+        tidur=tidur.append,
+    )
+
+    with pytest.raises(LLMError) as galat:
+        client.complete_dengan_gambar("apa ini", gambar_png, "image/png")
+
+    assert str(galat.value) == "Kuota atau batas laju AI terlampaui (HTTP 429)"
+    assert len(jumlah) == 3
+    assert tidur == [1, 2]
+
+
+def test_complete_dengan_gambar_tidak_mengulang_galat_permintaan(
+    gambar_png: bytes,
+) -> None:
+    jumlah: list[int] = []
+    tidur: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        jumlah.append(1)
+        return httpx.Response(400, json={"error": "ditolak"})
+
+    client = OpenAICompatClient(
+        KUNCI,
+        "model-uji",
+        transport=httpx.MockTransport(handler),
+        tidur=tidur.append,
+    )
+
+    with pytest.raises(LLMError) as galat:
+        client.complete_dengan_gambar("apa ini", gambar_png, "image/png")
+
+    assert str(galat.value) == "Permintaan ke AI ditolak (HTTP 400)"
+    assert len(jumlah) == 1
+    assert tidur == []
+
+
+def test_ekstrak_dari_gambar_dengan_openai_compat_sama_dengan_fixture_kaos(
+    kaos, gambar_png: bytes, json_kaos: str
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": json_kaos}}]},
+        )
+
+    client = OpenAICompatClient(
+        KUNCI,
+        "model-uji",
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert ekstrak_dari_gambar(gambar_png, "image/png", client) == kaos

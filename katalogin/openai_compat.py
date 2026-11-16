@@ -1,3 +1,4 @@
+import base64
 import time
 from collections.abc import Callable
 
@@ -42,6 +43,21 @@ class OpenAICompatClient(LLMClient):
         return f"OpenAICompatClient(model={self.model}, base_url={self._base_url})"
 
     def complete(self, prompt: str) -> str:
+        return self._kirim(prompt)
+
+    def complete_dengan_gambar(self, prompt: str, gambar: bytes, mime: str) -> str:
+        data = base64.b64encode(gambar).decode("ascii")
+        return self._kirim(
+            [
+                {"type": "text", "text": prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime};base64,{data}"},
+                },
+            ]
+        )
+
+    def _kirim(self, isi: str | list[dict[str, object]]) -> str:
         url = f"{self._base_url}/chat/completions"
         headers = {
             "Authorization": f"Bearer {self._api_key}",
@@ -49,7 +65,7 @@ class OpenAICompatClient(LLMClient):
         }
         payload = {
             "model": self.model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [{"role": "user", "content": isi}],
         }
 
         with httpx.Client(
