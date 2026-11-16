@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 from collections.abc import Callable, Mapping
 from pathlib import Path
@@ -14,7 +15,9 @@ BuatKlien = Callable[[Mapping[str, str] | None], LLMClient | None]
 def _buat_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m katalogin.uji_llm",
-        description="Uji koneksi dan pembacaan gambar oleh Gemini.",
+        description=(
+            "Uji koneksi dan pembacaan gambar oleh penyedia LLM yang dikonfigurasi."
+        ),
     )
     parser.add_argument(
         "--foto",
@@ -29,6 +32,11 @@ def _galat(pesan: str) -> int:
     return 1
 
 
+def _provider_dari_env(env: Mapping[str, str] | None) -> str:
+    sumber = env or os.environ
+    return sumber.get("KATALOGIN_LLM_PROVIDER", "gemini").strip().lower()
+
+
 def main(
     argv: list[str] | None = None,
     env: Mapping[str, str] | None = None,
@@ -39,10 +47,12 @@ def main(
 
     try:
         klien = builder(env)
-    except LLMError as galat:
+    except (LLMError, ValueError) as galat:
         return _galat(str(galat))
 
     if klien is None:
+        if _provider_dari_env(env) == "openai":
+            return _galat("KATALOGIN_LLM_API_KEY belum diisi")
         return _galat("GEMINI_API_KEY belum diisi")
 
     try:
@@ -69,7 +79,11 @@ def main(
     except LLMError as galat:
         return _galat(str(galat))
 
-    print(f"Balasan AI: {balasan.strip()}")
+    model = getattr(klien, "model", None) or "-"
+    print(
+        f"Klien: {type(klien).__name__} (model: {model})\n"
+        f"Balasan AI: {balasan.strip()}"
+    )
     return 0
 
 

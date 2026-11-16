@@ -83,3 +83,6 @@ def gambar_webp() -> bytes:
 def bersihkan_env_llm(monkeypatch) -> None:
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("KATALOGIN_LLM_MODEL", raising=False)
+    monkeypatch.delenv("KATALOGIN_LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("KATALOGIN_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("KATALOGIN_LLM_BASE_URL", raising=False)
