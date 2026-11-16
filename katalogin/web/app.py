@@ -83,6 +83,36 @@ with tab_teks:
             if "ekstraksi" in respons:
                 st.caption(f"Ekstraksi: {respons['ekstraksi']}")
 
+with tab_foto:
+    foto = st.file_uploader(
+        "Foto produk (JPEG, PNG, atau WebP, maksimum 5 MB)",
+        type=["jpg", "jpeg", "png", "webp"],
+        key="unggah_foto",
+    )
+    data_foto = foto.getvalue() if foto is not None else None
+    if foto is not None:
+        st.caption(f"{foto.name} ({len(data_foto)} byte)")
+
+    if st.button("Baca foto dan buat listing", key="btn_foto"):
+        st.session_state.pop("hasil_foto", None)
+        if foto is None:
+            st.error("Pilih foto produk terlebih dahulu.")
+        elif len(data_foto) > 5_000_000:
+            st.error("Gambar terlalu besar (maksimum 5 MB)")
+        else:
+            try:
+                respons = api.generate_foto(data_foto, platform, tone)
+            except ApiError as galat:
+                st.error(pesan_galat(galat))
+            else:
+                st.session_state["hasil_foto"] = respons
+
+    if "hasil_foto" in st.session_state:
+        respons = st.session_state["hasil_foto"]
+        st.caption("Produk terbaca dari foto (periksa sebelum dipakai)")
+        st.json(respons["produk_terbaca"])
+        tampilkan_hasil(respons["hasil"])
+
 try:
     kredit = api.kredit()
 except ApiError as galat:
