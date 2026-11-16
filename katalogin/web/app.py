@@ -10,7 +10,12 @@ import streamlit as st
 
 from katalogin.web.komponen import tampilkan_hasil
 from katalogin.web.klien_api import ApiError, KlienApi, buat_http_dari_env
-from katalogin.web.tampilan import PLATFORM_OPSI, TONE_OPSI, pesan_galat
+from katalogin.web.tampilan import (
+    PLATFORM_OPSI,
+    TONE_OPSI,
+    baris_hasil_csv,
+    pesan_galat,
+)
 
 
 st.set_page_config(page_title="Katalogin", layout="wide")
@@ -112,6 +117,44 @@ with tab_foto:
         st.caption("Produk terbaca dari foto (periksa sebelum dipakai)")
         st.json(respons["produk_terbaca"])
         tampilkan_hasil(respons["hasil"])
+
+with tab_csv:
+    berkas_csv = st.file_uploader(
+        "Berkas CSV (maksimum 20 baris)",
+        type=["csv"],
+        key="unggah_csv",
+    )
+
+    if st.button("Buat listing dari CSV", key="btn_csv"):
+        st.session_state.pop("hasil_csv", None)
+        if berkas_csv is None:
+            st.error("Pilih berkas CSV terlebih dahulu.")
+        else:
+            try:
+                isi_csv = berkas_csv.getvalue().decode("utf-8-sig")
+            except UnicodeDecodeError:
+                st.error("Berkas CSV harus berkode UTF-8.")
+            else:
+                try:
+                    respons = api.generate_csv(isi_csv, platform, tone)
+                except ApiError as galat:
+                    st.error(pesan_galat(galat))
+                else:
+                    st.session_state["hasil_csv"] = respons
+
+    if "hasil_csv" in st.session_state:
+        respons = st.session_state["hasil_csv"]
+        st.dataframe(baris_hasil_csv(respons["hasil"]))
+        st.download_button(
+            "Unduh CSV hasil",
+            data=respons["csv"],
+            file_name="katalogin-hasil.csv",
+            mime="text/csv",
+            key="unduh_csv",
+        )
+        for hasil in respons["hasil"]:
+            with st.expander(hasil["nama_produk"]):
+                tampilkan_hasil(hasil)
 
 try:
     kredit = api.kredit()
