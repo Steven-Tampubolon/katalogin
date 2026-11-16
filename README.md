@@ -11,6 +11,36 @@ pip install -r requirements.txt
 uvicorn katalogin.main:app
 ```
 
+## Antarmuka web
+
+Antarmuka Streamlit berjalan sebagai proses terpisah dari API. Pasang dependensi, lalu jalankan API di satu terminal:
+
+```bash
+uvicorn katalogin.main:app
+```
+
+Jalankan antarmuka di terminal lain:
+
+```bash
+streamlit run katalogin/web/app.py
+```
+
+Secara bawaan, antarmuka menghubungi API di `http://127.0.0.1:8000`. Gunakan variabel lingkungan `KATALOGIN_API_URL` pada proses Streamlit jika API berjalan di alamat lain:
+
+```bash
+export KATALOGIN_API_URL=http://127.0.0.1:8000
+streamlit run katalogin/web/app.py
+```
+
+Antarmuka menyediakan empat tab:
+
+- **Dari teks** mengubah teks mentah supplier menjadi judul, deskripsi, dan tag. Opsi **Pakai AI untuk membaca teks** memakai layanan AI di sisi API.
+- **Dari foto** membaca produk dari gambar JPEG, PNG, atau WebP. Pembuatan dari foto memerlukan konfigurasi AI pada proses API.
+- **Dari CSV** membuat listing untuk beberapa produk sekaligus dan menyediakan hasil CSV untuk diunduh.
+- **Riwayat** menampilkan 20 riwayat terbaru beserta detail hasil yang dipilih.
+
+Kolom `ID pengguna` di sidebar hanyalah placeholder untuk memilih data pengguna, bukan login dan tidak memberikan keamanan. Jangan membuka antarmuka ini ke internet publik tanpa mekanisme autentikasi. Pastikan konfigurasi AI disetel pada proses API sebelum menggunakan pembuatan dari foto atau opsi AI untuk membaca teks.
+
 ## Variabel lingkungan
 
 | Variabel | Keterangan | Bawaan |
