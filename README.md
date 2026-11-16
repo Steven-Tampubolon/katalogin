@@ -24,12 +24,43 @@ Header `X-User-Id` pada endpoint pengguna hanyalah placeholder, bukan mekanisme 
 
 | Variabel | Keterangan | Bawaan |
 |---|---|---|
-| `GEMINI_API_KEY` | Kunci API Gemini untuk ekstraksi teks dan foto | Tidak ada; layanan AI dinonaktifkan bila kosong |
-| `KATALOGIN_LLM_MODEL` | Nama model Gemini yang digunakan | `gemini-3.6-flash` |
+| `KATALOGIN_LLM_PROVIDER` | Penyedia LLM: `gemini` atau `openai` untuk API kompatibel OpenAI | `gemini` |
+| `KATALOGIN_LLM_API_KEY` | Kunci API untuk provider `openai`; menjadi kunci cadangan untuk provider `gemini` bila `GEMINI_API_KEY` kosong | Tidak ada |
+| `KATALOGIN_LLM_BASE_URL` | Alamat dasar API untuk provider `openai` | `https://api.openai.com/v1` |
+| `KATALOGIN_LLM_MODEL` | Nama model yang digunakan; wajib diisi untuk provider `openai` | `gemini-3.6-flash` untuk provider `gemini` |
+| `GEMINI_API_KEY` | Kunci API Gemini | Tidak ada; layanan AI dinonaktifkan bila kunci tidak tersedia |
 
-Simpan `GEMINI_API_KEY` sebagai variabel lingkungan di tempat API dijalankan. Jangan menyimpan kunci API di repository atau mencetaknya di log.
+Simpan kunci API sebagai variabel lingkungan di tempat API dijalankan. Jangan menyimpan kunci API di repository atau mencetaknya di log.
 
-Opsi `gunakan_ai` pada `POST /generate` meminta Gemini mengekstraksi atribut produk dari `teks` supplier. Opsi ini hanya berlaku bila `teks` diisi dan tidak dapat dikombinasikan dengan `produk`. Contoh:
+Contoh konfigurasi Gemini:
+
+```bash
+export KATALOGIN_LLM_PROVIDER=gemini
+export GEMINI_API_KEY=<kunci>
+export KATALOGIN_LLM_MODEL=gemini-3.6-flash
+```
+
+Contoh konfigurasi NVIDIA melalui API kompatibel OpenAI:
+
+```bash
+export KATALOGIN_LLM_PROVIDER=openai
+export KATALOGIN_LLM_API_KEY=<kunci>
+export KATALOGIN_LLM_BASE_URL=https://integrate.api.nvidia.com/v1
+export KATALOGIN_LLM_MODEL=<model>
+```
+
+Contoh konfigurasi OpenRouter melalui API kompatibel OpenAI:
+
+```bash
+export KATALOGIN_LLM_PROVIDER=openai
+export KATALOGIN_LLM_API_KEY=<kunci>
+export KATALOGIN_LLM_BASE_URL=https://openrouter.ai/api/v1
+export KATALOGIN_LLM_MODEL=<model>
+```
+
+Kode tidak memuat berkas `.env` secara otomatis. Ekspor variabel tersebut di shell atau gunakan pemuat `.env` pilihan Anda. Endpoint `/generate/foto` hanya berfungsi bila model yang dipilih mendukung gambar.
+
+Opsi `gunakan_ai` pada `POST /generate` meminta penyedia AI mengekstraksi atribut produk dari `teks` supplier. Opsi ini hanya berlaku bila `teks` diisi dan tidak dapat dikombinasikan dengan `produk`. Contoh:
 
 ```json
 {
