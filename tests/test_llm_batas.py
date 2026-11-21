@@ -38,7 +38,7 @@ def test_nama_201_karakter_hasil_none_coba_llm() -> None:
     assert alasan == "respons_tidak_valid"
 
 
-def test_mereka_201_karakter_jadi_none() -> None:
+def test_merek_201_karakter_jadi_none() -> None:
     client = FakeLLM(_make_json(nama="Kaos", merek="x" * 201, fitur=["f1"]))
     produk = ekstrak_dengan_llm("teks", client)
     assert produk is not None
