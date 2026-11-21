@@ -16,11 +16,10 @@ from katalogin.csvio import baca_csv, ekspor_csv
 from katalogin.extract import ekstrak_teks
 from katalogin.gambar import decode_base64, deteksi_mime
 from katalogin.llm import (
+    CATATAN_ALASAN,
     LLMClient,
     LLMError,
-    coba_ekstrak_dengan_llm,
     coba_ekstrak_dengan_llm_rinci,
-    CATATAN_ALASAN,
     ekstrak_dari_gambar,
 )
 from katalogin.llm_config import buat_klien_dari_env
