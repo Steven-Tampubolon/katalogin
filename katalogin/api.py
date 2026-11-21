@@ -19,6 +19,8 @@ from katalogin.llm import (
     LLMClient,
     LLMError,
     coba_ekstrak_dengan_llm,
+    coba_ekstrak_dengan_llm_rinci,
+    CATATAN_ALASAN,
     ekstrak_dari_gambar,
 )
 from katalogin.llm_config import buat_klien_dari_env
@@ -220,7 +222,7 @@ def create_app(
                         detail=f"Kredit tidak cukup: butuh 1, tersisa {saldo}",
                     )
 
-                produk_ai = coba_ekstrak_dengan_llm(permintaan.teks, llm_client)
+                produk_ai, alasan = coba_ekstrak_dengan_llm_rinci(permintaan.teks, llm_client)
                 if produk_ai is not None:
                     produk = produk_ai
                     ekstraksi = "ai"
@@ -261,6 +263,9 @@ def create_app(
         }
         if ekstraksi is not None:
             respons["ekstraksi"] = ekstraksi
+            if ekstraksi == "aturan":
+                respons["alasan_fallback"] = alasan
+                respons["catatan_ai"] = CATATAN_ALASAN[alasan]
         return respons
 
     @app.post("/generate/foto")
