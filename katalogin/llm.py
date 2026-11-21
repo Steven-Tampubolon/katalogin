@@ -8,6 +8,9 @@ from katalogin.textutil import rapikan_spasi, rapikan_teks
 
 ALASAN_PENYEDIA_GAGAL = "penyedia_gagal"
 ALASAN_RESPONS_TIDAK_VALID = "respons_tidak_valid"
+BATAS_FIELD = 200
+BATAS_FITUR_JUMLAH = 20
+BATAS_FITUR_PANJANG = 100
 CATATAN_ALASAN = {
     ALASAN_PENYEDIA_GAGAL: "Layanan AI gagal merespons; hasil dibuat dengan aturan biasa.",
     ALASAN_RESPONS_TIDAK_VALID: "Jawaban AI tidak dapat dibaca; hasil dibuat dengan aturan biasa.",
@@ -83,21 +86,55 @@ def _produk_dari_respons(respons: str) -> Product | None:
     except (AttributeError, TypeError, ValueError):
         return None
 
+    # Cek panjang nama setelah dirapikan
+    nama_bersih = rapikan_teks(nama)
+    if len(nama_bersih) > BATAS_FIELD:
+        return None
+
     merek = data.get("merek")
+    bahan = data.get("bahan")
+    ukuran = data.get("ukuran")
+    warna = data.get("warna")
+    fungsi = data.get("fungsi")
     fitur = data.get("fitur")
+
+    # Cek panjang field lainnya setelah dirapikan (max 200 chars)
+    # Jika melebihi, field menjadi None tetapi produk tetap sah
+    if isinstance(merek, str):
+        if len(rapikan_teks(merek)) > BATAS_FIELD:
+            merek = None
+    if isinstance(bahan, str):
+        if len(rapikan_teks(bahan)) > BATAS_FIELD:
+            bahan = None
+    if isinstance(ukuran, str):
+        if len(rapikan_teks(ukuran)) > BATAS_FIELD:
+            ukuran = None
+    if isinstance(warna, str):
+        if len(rapikan_teks(warna)) > BATAS_FIELD:
+            warna = None
+    if isinstance(fungsi, str):
+        if len(rapikan_teks(fungsi)) > BATAS_FIELD:
+            fungsi = None
+
+    # Process fitur: buang item > 100 chars, ambil hanya 20 pertama
+    if isinstance(fitur, list) and all(isinstance(item, str) for item in fitur):
+        fitur_bersih = []
+        for item in fitur:
+            item_tersih = rapikan_teks(item)
+            if len(item_tersih) <= BATAS_FITUR_PANJANG:
+                fitur_bersih.append(item_tersih)
+        fitur_terb = fitur_bersih[:BATAS_FITUR_JUMLAH]
+    else:
+        fitur_terb = []
+
     return Product(
-        nama=rapikan_teks(nama),
+        nama=nama_bersih,
         merek=rapikan_spasi(merek) if isinstance(merek, str) else None,
-        bahan=_nilai_teks(data.get("bahan")),
-        ukuran=_nilai_teks(data.get("ukuran")),
-        warna=_nilai_teks(data.get("warna")),
-        fungsi=_nilai_teks(data.get("fungsi")),
-        fitur=(
-            [rapikan_teks(item) for item in fitur]
-            if isinstance(fitur, list)
-            and all(isinstance(item, str) for item in fitur)
-            else []
-        ),
+        bahan=_nilai_teks(bahan),
+        ukuran=_nilai_teks(ukuran),
+        warna=_nilai_teks(warna),
+        fungsi=_nilai_teks(fungsi),
+        fitur=fitur_terb,
     )
 
 
