@@ -1,9 +1,18 @@
 import abc
 import json
+import logging
 
 from katalogin.extract import ekstrak_teks
 from katalogin.models import Product
 from katalogin.textutil import rapikan_spasi, rapikan_teks
+
+ALASAN_PENYEDIA_GAGAL = "penyedia_gagal"
+ALASAN_RESPONS_TIDAK_VALID = "respons_tidak_valid"
+CATATAN_ALASAN = {
+    ALASAN_PENYEDIA_GAGAL: "Layanan AI gagal merespons; hasil dibuat dengan aturan biasa.",
+    ALASAN_RESPONS_TIDAK_VALID: "Jawaban AI tidak dapat dibaca; hasil dibuat dengan aturan biasa.",
+}
+logger = logging.getLogger("katalogin.llm")
 
 PROMPT_EKSTRAKSI = (
     "Ekstrak informasi produk dari teks supplier. Balas hanya satu objek JSON "
@@ -93,12 +102,20 @@ def _produk_dari_respons(respons: str) -> Product | None:
 
 
 def coba_ekstrak_dengan_llm(teks: str, client: LLMClient) -> Product | None:
+    return coba_ekstrak_dengan_llm_rinci(teks, client)[0]
+
+
+def coba_ekstrak_dengan_llm_rinci(teks: str, client: LLMClient) -> tuple[Product | None, str | None]:
     prompt = PROMPT_EKSTRAKSI.replace("{TEKS}", teks)
     try:
         respons = client.complete(prompt)
-    except Exception:
-        return None
-    return _produk_dari_respons(respons)
+    except Exception as galat:
+        logger.warning("Penyedia AI gagal: %s", type(galat).__name__)
+        return (None, ALASAN_PENYEDIA_GAGAL)
+    produk = _produk_dari_respons(respons)
+    if produk is None:
+        return (None, ALASAN_RESPONS_TIDAK_VALID)
+    return (produk, None)
 
 
 def ekstrak_dengan_llm(teks: str, client: LLMClient) -> Product:
