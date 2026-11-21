@@ -68,7 +68,19 @@ class FakeLLM(LLMClient):
 def _nilai_teks(nilai: object) -> str | None:
     if not isinstance(nilai, str):
         return None
-    return rapikan_teks(nilai)
+    teks = rapikan_teks(nilai)
+    if len(teks) > BATAS_FIELD:
+        return None
+    return teks
+
+
+def _merek_dalam_batas(merek: object) -> str | None:
+    if not isinstance(merek, str):
+        return None
+    cleaned = rapikan_spasi(merek)
+    if len(cleaned) > BATAS_FIELD:
+        return None
+    return cleaned
 
 
 def _produk_dari_respons(respons: str) -> Product | None:
@@ -98,44 +110,33 @@ def _produk_dari_respons(respons: str) -> Product | None:
     fungsi = data.get("fungsi")
     fitur = data.get("fitur")
 
-    # Cek panjang field lainnya setelah dirapikan (max 200 chars)
-    # Jika melebihi, field menjadi None tetapi produk tetap sah
-    if isinstance(merek, str):
-        if len(rapikan_teks(merek)) > BATAS_FIELD:
-            merek = None
-    if isinstance(bahan, str):
-        if len(rapikan_teks(bahan)) > BATAS_FIELD:
-            bahan = None
-    if isinstance(ukuran, str):
-        if len(rapikan_teks(ukuran)) > BATAS_FIELD:
-            ukuran = None
-    if isinstance(warna, str):
-        if len(rapikan_teks(warna)) > BATAS_FIELD:
-            warna = None
-    if isinstance(fungsi, str):
-        if len(rapikan_teks(fungsi)) > BATAS_FIELD:
-            fungsi = None
-
-    # Process fitur: buang item > 100 chars, ambil hanya 20 pertama
-    if isinstance(fitur, list) and all(isinstance(item, str) for item in fitur):
-        fitur_bersih = []
-        for item in fitur:
-            item_tersih = rapikan_teks(item)
-            if len(item_tersih) <= BATAS_FITUR_PANJANG:
-                fitur_bersih.append(item_tersih)
-        fitur_terb = fitur_bersih[:BATAS_FITUR_JUMLAH]
-    else:
-        fitur_terb = []
+    merek = _merek_dalam_batas(data.get("merek"))
+    bahan = _nilai_teks(data.get("bahan"))
+    ukuran = _nilai_teks(data.get("ukuran"))
+    warna = _nilai_teks(data.get("warna"))
+    fungsi = _nilai_teks(data.get("fungsi"))
+    fitur = _rapikan_fitur(data.get("fitur"))
 
     return Product(
         nama=nama_bersih,
-        merek=rapikan_spasi(merek) if isinstance(merek, str) else None,
-        bahan=_nilai_teks(bahan),
-        ukuran=_nilai_teks(ukuran),
-        warna=_nilai_teks(warna),
-        fungsi=_nilai_teks(fungsi),
-        fitur=fitur_terb,
+        merek=merek,
+        bahan=bahan,
+        ukuran=ukuran,
+        warna=warna,
+        fungsi=fungsi,
+        fitur=fitur,
     )
+
+
+def _rapikan_fitur(fitur: object) -> list[str]:
+    if not isinstance(fitur, list) or not all(isinstance(item, str) for item in fitur):
+        return []
+    fitur_bersih = []
+    for item in fitur:
+        item_tersih = rapikan_teks(item)
+        if len(item_tersih) <= BATAS_FITUR_PANJANG:
+            fitur_bersih.append(item_tersih)
+    return fitur_bersih[:BATAS_FITUR_JUMLAH]
 
 
 def coba_ekstrak_dengan_llm(teks: str, client: LLMClient) -> Product | None:
