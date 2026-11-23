@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils"
 
 export interface SelectProps extends React.HTMLAttributes<HTMLDivElement> {
   className?: string
+  onValueChange?: (value: string) => void
 }
 
 export const SelectTrigger = React.forwardRef<HTMLButtonElement, SelectProps>((props, ref) => {

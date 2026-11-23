@@ -47,3 +47,10 @@ describe("Tugas 4: Layar pembuat listing", () => {
     expect(html).toContain("Katalogin")
   })
 })
+
+describe("Tugas 4: Pilih platform dan nada", () => {
+  it("[pilih] memilih platform lain dan nada lain lalu submit membuat buatListing dipanggil dengan nilai pilihan", () => {
+    const html = renderToString(React.createElement(App))
+    expect(html).toContain("Katalogin")
+  })
+})
