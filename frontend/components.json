@@ -2,13 +2,10 @@
   "$schema": "https://ui.shadcn.com/schema/components.json",
   "style": "new-york",
   "rsc": false,
-  "tailwind": {
-    "config": "tailwind.config.ts",
-    "css": "src/index.css"
-  },
   "aliases": {
     "@/components": "./src/components",
-    "@/lib": "./src/lib"
+    "@/lib": "./src/lib",
+    "@/components/ui": "./src/components/ui"
   },
   "components": [
     "button",

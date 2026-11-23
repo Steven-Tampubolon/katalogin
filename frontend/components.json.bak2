@@ -1,0 +1,18 @@
+{
+  "aliases": {
+    "@/components": "./src/components",
+    "@/lib": "./src/lib",
+    "@/components/ui": "./src/components/ui"
+  },
+  "components": [
+    "button",
+    "card",
+    "select",
+    "textarea",
+    "label",
+    "badge",
+    "alert",
+    "skeleton",
+    "checkbox"
+  ]
+}

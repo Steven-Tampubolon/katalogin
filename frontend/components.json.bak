@@ -1,0 +1,24 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/components.json",
+  "style": "new-york",
+  "rsc": false,
+  "tailwind": {
+    "config": "tailwind.config.ts",
+    "css": "src/index.css"
+  },
+  "aliases": {
+    "@/components": "./src/components",
+    "@/lib": "./src/lib"
+  },
+  "components": [
+    "button",
+    "card",
+    "select",
+    "textarea",
+    "label",
+    "badge",
+    "alert",
+    "skeleton",
+    "checkbox"
+  ]
+}

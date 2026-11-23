@@ -1,23 +1,14 @@
 import * as React from "react"
-import { cn } from "@/lib/utils"
 
-export interface SkeletonProps {
-  className?: string
-  width?: string
-  height?: string
-}
-
-export const Skeleton = React.forwardRef<HTMLDivElement, SkeletonProps>((props, ref) => {
+export const Skeleton = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>((props, ref) => {
   return (
     <div
       className={cn(
-        "rounded-md h-6 w-full bg-m skewed-overflow",
-        props.width && `w-[${props.width}]`,
-        props.height && `h-[${props.height}]`,
+        "rounded-md h-6 w-full bg-base-200/60 animate-pulse",
         props.className,
       )}
       ref={ref}
-    />
+    )
   )
 })
 
