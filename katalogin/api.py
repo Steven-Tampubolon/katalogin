@@ -6,8 +6,10 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from starlette.datastructures import Headers
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from katalogin import credits, db, history, service
@@ -41,6 +43,9 @@ class ModelProduk(BaseModel):
         default_factory=list, max_length=20
     )
 
+
+PLATFORM_OPSI = ["shopee", "tokopedia", "tiktok"]
+TONE_OPSI = ["kasual", "profesional", "singkat"]
 
 class ModelGenerate(BaseModel):
     platform: str = Field(max_length=30)
@@ -153,6 +158,8 @@ def create_app(
         llm_client if llm_client is not None else buat_klien_dari_env()
     )
     db.init_db(app.state.db_path)
+    limiter = Limiter(key_func=get_remote_address)
+    app.state.limiter = limiter
     app.add_middleware(
         BatasBodyMiddleware,
         batas=BATAS_CONTENT_LENGTH,
@@ -209,6 +216,18 @@ def create_app(
             raise HTTPException(
                 status_code=400,
                 detail="gunakan_ai hanya berlaku untuk 'teks'",
+            )
+
+        if permintaan.platform.strip().lower() not in ["shopee", "tokopedia", "tiktok"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Platform tidak dikenal: {permintaan.platform}. Pilihan: shopee, tokopedia, tiktok",
+            )
+
+        if permintaan.tone.strip().lower() not in ["kasual", "profesional", "singkat"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Tone tidak valid: {permintaan.tone}. Pilihan: kasual, profesional, singkat",
             )
 
         ekstraksi: str | None = None
