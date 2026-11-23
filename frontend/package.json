@@ -9,6 +9,7 @@
     "test": "vitest run --environment jsdom"
   },
   "dependencies": {
+    "lucide-react": "^1.77.0",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },
@@ -30,6 +31,7 @@
     "tailwindcss": "4.3.5",
     "typescript": "7.0.2",
     "vite": "8.3.6",
+    "vite-tsconfig-paths": "^6.1.1",
     "vitest": "5.1.1"
   }
 }
