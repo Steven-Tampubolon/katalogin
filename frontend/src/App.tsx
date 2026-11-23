@@ -27,6 +27,9 @@ function App() {
   const [status, setStatus] = React.useState<"kosong" | "memuat" | "galat" | "sukses">("kosong")
   const [hasil, setHasil] = React.useState<Hasil | null>(null)
   const [proses, setProses] = React.useState(false)
+  const [platform, setPlatform] = React.useState("Shopee")
+  const [tone, setTone] = React.useState("Kasual")
+  const [gunakanAi, setGunakanAi] = React.useState(false)
 
   React.useEffect(() => {
     // ambilKredit tidak digunakan dalam implementasi sederhana
@@ -41,7 +44,7 @@ function App() {
     setProses(true)
     setHasil(null)
     try {
-      const data = await buatListing({ platform: "shopee" as any, tone: "kasual" as any, teks: infoProduk, gunakanAi: false })
+      const data = await buatListing({ platform, tone: tone as any, teks: infoProduk, gunakanAi: gunakanAi })
       setHasil(data)
       setSisaKredit(data.sisa_kredit)
       setStatus("sukses")
@@ -87,7 +90,10 @@ function App() {
               <div className="mt-4 grid grid-cols-1 gap-2">
                 <Label>
                   <span className="text-teks-redup">Platform</span>
-                  <Select>
+                  <Select
+                    value={platform}
+                    onChange={(e) => setPlatform(e.target.value)}
+                  >
                     <SelectTrigger>
                       <span className="text-sm font-medium">Shopee</span>
                     </SelectTrigger>
@@ -103,7 +109,10 @@ function App() {
                 </Label>
                 <Label className="mt-4">
                   <span className="text-teks-redup">Nada</span>
-                  <Select>
+                  <Select
+                    value={tone}
+                    onChange={(e) => setTone(e.target.value)}
+                  >
                     <SelectTrigger>
                       <span className="text-sm font-medium">Kasual</span>
                     </SelectTrigger>
@@ -122,7 +131,8 @@ function App() {
                 <Label className="flex items-center gap-2">
                   <input
                     type="checkbox"
-                    defaultChecked
+                    checked={gunakanAi}
+                    onChange={(e) => setGunakanAi(e.target.checked)}
                     className="rounded-md border py-2"
                   />
                   <span className="text-teks-redup">Pakai AI untuk membaca info produk</span>
