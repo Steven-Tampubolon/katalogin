@@ -1,4 +1,5 @@
 import * as React from "react"
+import { cn } from "@/lib/utils"
 
 export const Skeleton = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>((props, ref) => {
   return (
@@ -8,7 +9,7 @@ export const Skeleton = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HT
         props.className,
       )}
       ref={ref}
-    )
+    />
   )
 })
 

@@ -27,7 +27,7 @@ export const SelectContent = React.forwardRef<HTMLDivElement, SelectProps>((prop
         "absolute right-0 top-full mt-1 w-64 rounded-md bg-card py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:visible:outline-none",
         props.className,
       )}
-    )
+    />
   )
 })
 
@@ -46,3 +46,15 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>((props, ref)
 })
 
 Select.displayName = "Select"
+
+export const SelectSeparator = React.forwardRef<HTMLDivElement, SelectProps>((_props, ref) => {
+  return <div className="my-1" ref={ref} />
+})
+
+SelectSeparator.displayName = "SelectSeparator"
+
+export const SelectValue = React.forwardRef<HTMLDivElement, SelectProps>((props, ref) => {
+  return <div className="px-2 py-1" ref={ref}>{props.children}</div>
+})
+
+SelectValue.displayName = "SelectValue"
