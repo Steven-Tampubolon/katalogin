@@ -5,7 +5,7 @@ import re
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -144,6 +144,7 @@ def create_app(
     db_path: str | None = None,
     admin_token: str | None = None,
     llm_client: LLMClient | None = None,
+    frontend_dir: str | None = None,
 ) -> FastAPI:
     app = FastAPI()
     app.state.db_path = db_path or os.environ.get("KATALOGIN_DB", "katalogin.db")
@@ -157,6 +158,31 @@ def create_app(
         batas=BATAS_CONTENT_LENGTH,
         batas_per_jalur={"/generate/foto": 7_000_000},
     )
+
+    if frontend_dir is None:
+        frontend_dir = os.environ.get("KATALOGIN_FRONTEND_DIR")
+    if not frontend_dir:
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        frontend_dir = os.path.join(repo_root, "frontend", "dist")
+
+    if frontend_dir and os.path.isdir(frontend_dir) and os.path.isfile(
+        os.path.join(frontend_dir, "index.html")
+    ):
+        with open(os.path.join(frontend_dir, "index.html")) as f:
+            index_content = f.read()
+
+        @app.get("/", include_in_schema=False)
+        def serve_index():
+            return Response(content=index_content, media_type="text/html")
+
+        @app.get("/assets/{path:path}", include_in_schema=False)
+        def serve_assets(path: str):
+            asset_path = os.path.join(frontend_dir, "assets", path)
+            if os.path.isfile(asset_path):
+                with open(asset_path, "rb") as f:
+                    asset_content = f.read()
+                return Response(content=asset_content, media_type="application/javascript")
+            raise HTTPException(status_code=404)
 
     @app.get("/health")
     def health() -> dict[str, str]:
