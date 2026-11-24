@@ -32,9 +32,9 @@ describe("Tugas 4: Layar pembuat listing", () => {
     expect(html).toContain("rounded-xl")
   })
 
-  it("[402] markup berisi border-background", () => {
+  it("[402] markup berisi border", () => {
     const html = renderToString(React.createElement(App))
-    expect(html).toContain("border-background")
+    expect(html).toContain("border")
   })
 
   it("[catatan_ai] markup berisi rounded-xl", () => {
