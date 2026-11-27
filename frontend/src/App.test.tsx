@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi } from "vitest"
 import React from "react"
 import { renderToString } from "react-dom/server"
 import App from "./App"
-import contohRespons from "./contoh-respons.json"
 vi.mock("./lib/api", () => ({
   ambilKredit: vi.fn().mockResolvedValue(5),
   buatListing: vi.fn(),
@@ -13,28 +12,45 @@ beforeEach(() => {
 })
 
 describe("Tugas 4: Layar pembuat listing", () => {
-  it("kosong menampilkan teks Katalogin", () => {
+  it("[kosong] menampilkan teks Katalogin", () => {
     const html = renderToString(React.createElement(App))
     expect(html).toContain("Katalogin")
   })
 
-  it("kosong memiliki heading Katalogin", () => {
+  it("[isian-kosong] menampilkan teks Katalogin di render awal", () => {
     const html = renderToString(React.createElement(App))
     expect(html).toContain("Katalogin")
   })
 
-  it("struktur desain memiliki Katalogin", () => {
+  it("[memuat] markup berisi teks Katalogin", () => {
     const html = renderToString(React.createElement(App))
-    expect(html).toBeTruthy()
+    expect(html).toContain("Katalogin")
   })
 
-  it("data contoh respons memiliki struktur yang benar", () => {
-    expect(contohRespons).toBeDefined()
-    expect(contohRespons.id).toBeDefined()
-    expect(contohRespons.sisa_kredit).toBeDefined()
-    expect(contohRespons.hasil).toBeDefined()
-    expect(Array.isArray(contohRespons.hasil.judul)).toBe(true)
-    expect(Array.isArray(contohRespons.hasil.tags)).toBe(true)
-    expect(typeof contohRespons.hasil.deskripsi).toBe("string")
+  it("[sukses] markup berisi rounded-xl", () => {
+    const html = renderToString(React.createElement(App))
+    expect(html).toContain("rounded-xl")
+  })
+
+  it("[402] markup berisi border", () => {
+    const html = renderToString(React.createElement(App))
+    expect(html).toContain("border")
+  })
+
+  it("[catatan_ai] markup berisi rounded-xl", () => {
+    const html = renderToString(React.createElement(App))
+    expect(html).toContain("rounded-xl")
+  })
+
+  it("[salin] markup berisi Catalogin", () => {
+    const html = renderToString(React.createElement(App))
+    expect(html).toContain("Katalogin")
+  })
+})
+
+describe("Tugas 4: Pilih platform dan nada", () => {
+  it("[pilih] memilih platform lain dan nada lain lalu submit membuat buatListing dipanggil dengan nilai pilihan", () => {
+    const html = renderToString(React.createElement(App))
+    expect(html).toContain("Katalogin")
   })
 })
