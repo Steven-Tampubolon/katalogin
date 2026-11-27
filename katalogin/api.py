@@ -5,9 +5,10 @@ import re
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 from starlette.datastructures import Headers
+from starlette.staticfiles import StaticFiles
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -100,6 +101,10 @@ class BatasBodyMiddleware:
             await self.app(scope, receive, send)
             return
 
+        if scope.get("method", "GET").upper() in ("GET", "HEAD", "OPTIONS"):
+            await self.app(scope, receive, send)
+            return
+
         content_length = Headers(scope=scope).get("content-length")
         try:
             panjang_body = int(content_length) if content_length is not None else 0
@@ -172,24 +177,11 @@ def create_app(
         repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         frontend_dir = os.path.join(repo_root, "frontend", "dist")
 
-    if frontend_dir and os.path.isdir(frontend_dir) and os.path.isfile(
-        os.path.join(frontend_dir, "index.html")
-    ):
-        with open(os.path.join(frontend_dir, "index.html")) as f:
-            index_content = f.read()
-
-        @app.get("/", include_in_schema=False)
-        def serve_index():
-            return Response(content=index_content, media_type="text/html")
-
-        @app.get("/assets/{path:path}", include_in_schema=False)
-        def serve_assets(path: str):
-            asset_path = os.path.join(frontend_dir, "assets", path)
-            if os.path.isfile(asset_path):
-                with open(asset_path, "rb") as f:
-                    asset_content = f.read()
-                return Response(content=asset_content, media_type="application/javascript")
-            raise HTTPException(status_code=404)
+    frontend_siap = bool(
+        frontend_dir
+        and os.path.isdir(frontend_dir)
+        and os.path.isfile(os.path.join(frontend_dir, "index.html"))
+    )
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -463,5 +455,9 @@ def create_app(
             koneksi.close()
 
         return {"user_id": permintaan.user_id, "kredit": saldo}
+
+    if frontend_siap:
+        # Harus paling akhir: mount pada "/" menangkap semua jalur yang belum cocok dengan rute API.
+        app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
 
     return app

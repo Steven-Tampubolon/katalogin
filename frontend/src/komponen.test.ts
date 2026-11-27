@@ -33,6 +33,21 @@ describe("komponen shadcn", () => {
     }
   })
 
+  it("utils.ts memakai clsx dan tailwind-merge, bukan cn buatan sendiri", () => {
+    const isi = readFileSync("src/lib/utils.ts", "utf8")
+    expect(isi).toContain("twMerge")
+    expect(isi).toContain("clsx")
+  })
+
+  it("tidak ada komponen yang mengimpor paket bernama cn, dan paket cn tidak terpasang", () => {
+    for (const f of readdirSync(UI).filter((x) => x.endsWith(".tsx"))) {
+      const isi = readFileSync(join(UI, f), "utf8")
+      expect(/from\s+["']cn["']/.test(isi), f).toBe(false)
+    }
+    const pkg = JSON.parse(readFileSync("package.json", "utf8"))
+    expect(Object.keys({ ...pkg.dependencies, ...pkg.devDependencies })).not.toContain("cn")
+  })
+
   it("setiap paket pihak ketiga yang diimpor komponen ada di package.json", () => {
     const pkg = JSON.parse(readFileSync("package.json", "utf8"))
     const ada = new Set([
